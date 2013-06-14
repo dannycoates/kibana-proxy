@@ -1,7 +1,15 @@
 var Hapi = require('hapi')
 var config = require('./config')
 
-var server = new Hapi.Server(config.host, +(process.env.PORT) || config.port)
+var server = new Hapi.Server(
+  config.host,
+  +(process.env.PORT) || config.port,
+  {
+    files: {
+      relativeTo: __dirname
+    }
+  }
+)
 
 server.auth(
   'simple',
