@@ -1,5 +1,10 @@
+var crypto = require('crypto')
 var Hapi = require('hapi')
 var config = require('./config')
+var verifier = require('request')
+
+var verifyUrl = config.persona.verifyUrl
+var audience = process.env.PERSONA_AUDIENCE || config.persona.audience
 
 var server = new Hapi.Server(
   config.host,
@@ -12,19 +17,25 @@ var server = new Hapi.Server(
 )
 
 server.auth(
-  'simple',
+  'session',
   {
-    scheme: 'basic',
-    validateFunc: function (name, password, cb) {
-      if (name === 'me' && password === 'TODO') {
-        cb(null, true, { name: name })
-      }
-      else {
-        cb(null, false)
-      }
-    }
+    scheme: 'cookie',
+    password: crypto.randomBytes(32).toString('base64'),
+    redirectTo: '/login'
   }
 )
+
+server.ext(
+  'onPreResponse',
+  function (request, next) {
+    var res = request.response();
+    // error responses don't have `header`
+    if (res.header) {
+      res.header('Strict-Transport-Security', 'max-age=10886400');
+    }
+    next();
+  }
+);
 
 var esHandler = {
   proxy: {
@@ -34,17 +45,90 @@ var esHandler = {
   }
 }
 
+function auth(request) {
+  var assertion = request.payload.assertion
+  verifier.post(
+    {
+      url: verifyUrl,
+      form: {
+        assertion: assertion,
+        audience: audience
+      }
+    },
+    function (err, response, body) {
+      if (err) {
+        return request.reply(Hapi.error.internal('Verification Error', err))
+      }
+      var result = JSON.parse(body)
+      if (result.status === 'okay') {
+        if (config.auth.emails.indexOf(result.email) > -1) {
+          request.auth.session.set({email: result.email})
+          request.reply(result)
+        }
+        else {
+          request.reply(Hapi.error.unauthorized('Invalid Email'))
+        }
+      }
+      else {
+        request.reply(Hapi.error.badRequest('Invalid Assertion'))
+      }
+    }
+  )
+}
+
+function logout(request) {
+  request.auth.session.clear()
+  request.reply.redirect('/')
+}
+
 server.route(
   [
     {
+      method: 'GET',
+      path: '/logout',
+      handler: logout,
+      config: {
+        auth: {
+          strategy: 'session',
+          mode: 'try'
+        }
+      }
+    },
+    {
+      method: 'GET',
+      path: '/login',
+      handler: {
+        file: {
+          path: 'login.html'
+        }
+      }
+    },
+    {
+      method: 'POST',
+      path: '/auth',
+      handler: auth,
+      config: {
+        auth: {
+          strategy: 'session',
+          mode: 'try'
+        }
+      }
+    },
+    {
       method: 'POST',
       path: '/{index}/_search',
-      handler: esHandler
+      handler: esHandler,
+      config: {
+        auth: 'session'
+      }
     },
     {
       method: 'POST',
       path: '/{index}/{type}/_search',
-      handler: esHandler
+      handler: esHandler,
+      config: {
+        auth: 'session'
+      }
     },
     {
       method: 'GET',
@@ -72,7 +156,7 @@ server.route(
       path: '/kibana-int/dashboard/{param*}',
       handler: esHandler,
       config: {
-        auth: 'simple'
+        auth: 'session'
       }
     },
     {
@@ -80,7 +164,7 @@ server.route(
       path: '/kibana-int/{param*}',
       handler: esHandler,
       config: {
-        auth: 'simple'
+        auth: 'session'
       }
     },
     {
@@ -90,6 +174,9 @@ server.route(
         directory: {
           path: './kibana'
         }
+      },
+      config: {
+        auth: 'session'
       }
     }
   ]

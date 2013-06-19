@@ -13,7 +13,8 @@
   "author": "Danny Coates",
   "license": "BSD",
   "dependencies": {
-    "hapi": "1.7.3"
+    "hapi": "1.8.1",
+    "request": "2.21.0"
   },
   "devDependencies": {
     "awsbox": "0.4.5"

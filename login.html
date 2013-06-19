@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=Edge">
+	</head>
+	<body>
+		<script src="https://login.persona.org/include.js"></script>
+		<script type="text/javascript">
+		function loggedInUser() {
+			return window.localStorage.getItem('email') || null
+		}
+		navigator.id.watch({
+			loggedInUser: loggedInUser(),
+			onlogin: function (assertion) {
+				var xhr = new XMLHttpRequest()
+				xhr.open('POST', '/auth', true)
+				xhr.setRequestHeader('Content-type', 'application/json')
+				xhr.onreadystatechange = function () {
+					if (xhr.readyState == 4) {
+						if (xhr.status == 200) {
+							var email = JSON.parse(xhr.responseText).email
+							window.localStorage.setItem('email', email)
+							window.location = window.location.origin
+						}
+						else {
+							window.alert(xhr.responseText)
+							navigator.id.logout()
+						}
+					}
+				}
+				xhr.send(JSON.stringify({ assertion: assertion }))
+			},
+			onlogout: function () {
+				var xhr = new XMLHttpRequest()
+				xhr.open('GET', '/logout', true)
+				xhr.onreadystatechange = function () {
+					if (xhr.readyState == 4) {
+						window.localStorage.setItem('email', null)
+					}
+				}
+				xhr.send()
+			}
+		})
+		navigator.id.request()
+		</script>
+	</body>
+</html>
