@@ -16,6 +16,8 @@ var server = new Hapi.Server(
   }
 )
 
+server.info.protocol = 'https'
+
 server.auth(
   'session',
   {
