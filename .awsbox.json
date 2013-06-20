@@ -1,9 +1,6 @@
 {
-  "ami": "ami-91a2c8f8",
+  "ami": "ami-155c2a7c",
   "processes": [
     "index.js"
-  ],
-  "hooks": {
-    "postcreate": "scripts/postcreate.sh"
-  }
+  ]
 }
